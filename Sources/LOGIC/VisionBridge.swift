@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import AppKit //testing
 
 // MARK: - Vision Bridge
 public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecked Sendable {
@@ -198,7 +197,7 @@ public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecke
     public func setupCommonTriggers() {
         let _ = GestureActionManager.shared
         
-        print("Dynamic action system initialized with default mappings")
+        print("Dynamic action system initialized")
     }
     
     private func setupBridge() {

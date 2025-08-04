@@ -175,7 +175,7 @@ public class GestureActionManager: @unchecked Sendable {
     private let debounceInterval: TimeInterval = 0.5
     
     private init() {
-        setupDefaultMappings()
+        // Initialize nil
     }
     
     // MARK: - Mapping Management
@@ -187,6 +187,11 @@ public class GestureActionManager: @unchecked Sendable {
     public func removeMapping(withId id: UUID) {
         actionMappings.removeAll { $0.id == id }
         print("Removed action mapping with ID: \(id)")
+    }
+    
+    public func removeMappingForGesture(_ gestureType: GestureType) {
+        actionMappings.removeAll { $0.gestureType == gestureType }
+        print("Removed all action mappings for gesture: \(gestureType.displayName)")
     }
     
     public func updateMapping(_ mapping: GestureActionMapping) {
@@ -233,44 +238,6 @@ public class GestureActionManager: @unchecked Sendable {
             lastTriggerTimes[gesture.type] = Date()
             print("Executed \(actionsExecuted) action(s) for \(gesture.type.displayName)")
         }
-    }
-    
-    // MARK: - Default Mappings
-    private func setupDefaultMappings() {
-        let safariAction = ActionConfiguration(
-            name: "Open Apple Website",
-            actionType: .openURL,
-            parameters: ["url": "https://www.apple.com"]
-        )
-        
-        let terminalAction = ActionConfiguration(
-            name: "Open Terminal",
-            actionType: .openApp,
-            parameters: ["bundleId": "com.apple.Terminal"]
-        )
-        
-        let lsCommandAction = ActionConfiguration(
-            name: "List Directory",
-            actionType: .shellCommand,
-            parameters: ["command": "ls -la", "captureOutput": "true"]
-        )
-        
-        addMapping(GestureActionMapping(
-            gestureType: .peaceSign,
-            actionConfiguration: safariAction
-        ))
-        
-        addMapping(GestureActionMapping(
-            gestureType: .pointingFinger,
-            actionConfiguration: terminalAction
-        ))
-        
-        addMapping(GestureActionMapping(
-            gestureType: .thumbsUp,
-            actionConfiguration: lsCommandAction
-        ))
-        
-        print("Default action mappings setup complete")
     }
     
     // MARK: - Predefined Action Creators
