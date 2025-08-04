@@ -8,6 +8,10 @@ public class CameraConnector: NSObject, @unchecked Sendable {
     private let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
     
+    private var frameCounter = 0
+    private let frameSkipInterval = 2 // Process every 2nd frame
+    private let targetFPS = 15
+    
     private override init() {
         super.init()
         setupCameraSession()
@@ -32,7 +36,7 @@ public class CameraConnector: NSObject, @unchecked Sendable {
     }
     
     private func setupCameraSession() {
-        session.sessionPreset = .medium
+        session.sessionPreset = .low
         
         let deviceTypes: [AVCaptureDevice.DeviceType] = [
             .builtInWideAngleCamera,
@@ -55,6 +59,21 @@ public class CameraConnector: NSObject, @unchecked Sendable {
             return
         }
         
+        do {
+            try device.lockForConfiguration()
+            
+            let frameRateRange = device.activeFormat.videoSupportedFrameRateRanges.first
+            if let range = frameRateRange, range.maxFrameRate >= Double(targetFPS) {
+                device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: CMTimeScale(targetFPS))
+                device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: CMTimeScale(targetFPS))
+            }
+            
+            device.unlockForConfiguration()
+            print("Camera configured for energy efficiency: \(targetFPS) FPS")
+        } catch {
+            print("Could not configure camera device for energy efficiency: \(error)")
+        }
+        
         if session.canAddInput(input) {
             session.addInput(input)
             print("Camera input added: \(device.localizedName)")
@@ -64,14 +83,18 @@ public class CameraConnector: NSObject, @unchecked Sendable {
     }
     
     private func setupVideoOutput() {
-        output.setSampleBufferDelegate(self, queue: DispatchQueue(label: "cameraFrameQueue"))
+        let frameQueue = DispatchQueue(label: "cameraFrameQueue", qos: .utility)
+        output.setSampleBufferDelegate(self, queue: frameQueue)
+        
         output.videoSettings = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
         ]
         
+        output.alwaysDiscardsLateVideoFrames = true
+        
         if session.canAddOutput(output) {
             session.addOutput(output)
-            print("Video output configured for frame analysis")
+            print("Video output configured for energy-efficient frame analysis")
         }
     }
 }
@@ -79,6 +102,9 @@ public class CameraConnector: NSObject, @unchecked Sendable {
 // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
 extension CameraConnector: AVCaptureVideoDataOutputSampleBufferDelegate {
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        frameCounter += 1
+        guard frameCounter % frameSkipInterval == 0 else { return }
+        
         VisionFoundation.shared.analyzeFrame(sampleBuffer)
     }
 }
