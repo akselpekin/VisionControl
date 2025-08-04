@@ -2,44 +2,54 @@ import SwiftUI
 import AVFoundation
 import LOGIC
 
+// MARK: - Camera View GUI
 public struct CameraView: NSViewRepresentable {
-    private let cameraHandler = CameraHandler()
-
+    private let cameraConnector = CameraConnector.shared
+    
     public init() {}
-
+    
     public func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        cameraHandler.setupPreview(in: view)
+        let containerView = NSView()
+        containerView.wantsLayer = true
+        containerView.layer?.backgroundColor = NSColor.black.cgColor
         
-        let gestureGuide = createGestureGuide()
-        view.addSubview(gestureGuide)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.setupCameraPreview(in: containerView)
+        }
         
-        return view
+        return containerView
     }
     
-    private func createGestureGuide() -> NSView {
-        let guideView = NSView(frame: NSRect(x: 10, y: 10, width: 180, height: 100))
-        guideView.wantsLayer = true
-        guideView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.7).cgColor
-        guideView.layer?.cornerRadius = 8
-        
-        let textField = NSTextField(frame: NSRect(x: 10, y: 10, width: 160, height: 80))
-        textField.isEditable = false
-        textField.isBordered = false
-        textField.backgroundColor = NSColor.clear
-        textField.textColor = NSColor.white
-        textField.font = NSFont.systemFont(ofSize: 12)
-        textField.stringValue = """
-        Gesture Controls:
-        
-        1️⃣ One Finger → Safari
-        2️⃣ Two Fingers → Spotlight
-        3️⃣ Three Fingers → Terminal
-        """
-        
-        guideView.addSubview(textField)
-        return guideView
+    public func updateNSView(_ nsView: NSView, context: Context) {
+        if let previewLayer = nsView.layer?.sublayers?.first as? AVCaptureVideoPreviewLayer {
+            DispatchQueue.main.async {
+                previewLayer.frame = nsView.bounds
+            }
+        }
     }
-
-    public func updateNSView(_ nsView: NSView, context: Context) {}
+    
+    private func setupCameraPreview(in view: NSView) {
+        view.wantsLayer = true
+        let previewLayer = cameraConnector.getPreviewLayer()
+        
+        DispatchQueue.main.async {
+            previewLayer.frame = view.bounds
+            previewLayer.videoGravity = .resizeAspectFill
+            previewLayer.transform = CATransform3DMakeScale(-1, 1, 1)
+            view.layer?.addSublayer(previewLayer)
+            print("Camera preview layer added with frame: \(view.bounds)")
+        }
+        
+        cameraConnector.startCapture()
+        print("Camera view initialized with mirrored preview")
+    }
 }
+
+#if DEBUG
+struct CameraView_Previews: PreviewProvider {
+    static var previews: some View {
+        CameraView()
+            .frame(width: 400, height: 300)
+    }
+}
+#endif

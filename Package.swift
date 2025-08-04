@@ -3,13 +3,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "HandControl",
+    name: "VisionControl",
     platforms: [
         .macOS(.v15),
     ],
     targets: [
         .executableTarget(
-            name: "HandControl",
+            name: "VisionControl",
             dependencies: ["GUI", "LOGIC"],
         ),
         .target(
