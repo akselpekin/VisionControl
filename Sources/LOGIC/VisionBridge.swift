@@ -14,8 +14,11 @@ public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecke
     private var gestureEventHistory: [GestureEvent] = []
     private var gestureStatistics: GestureStatistics = GestureStatistics()
     
-    private let maxCollectionSize: Int = 100
-    private let gestureRetentionTime: TimeInterval = 30.0
+    private let maxCollectionSize: Int = 50
+    private let gestureRetentionTime: TimeInterval = 15.0
+    
+    private var lastCleanupTime = Date()
+    private let cleanupInterval: TimeInterval = 5.0
     
     public static let shared = VisionBridge()
     
@@ -55,7 +58,12 @@ public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecke
         gestureEventHistory.append(event)
         
         updateStatistics(for: gesture)
-        cleanOldData()
+        
+        let now = Date()
+        if now.timeIntervalSince(lastCleanupTime) > cleanupInterval {
+            cleanOldData()
+            lastCleanupTime = now
+        }
         
         print("Bridge collected: \(gesture.type.displayName) (confidence: \(String(format: "%.2f", gesture.confidence)))")
     }
@@ -207,12 +215,23 @@ public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecke
     private func cleanOldData() {
         let cutoffTime = Date().addingTimeInterval(-gestureRetentionTime)
         
+        let oldGestureCount = collectedGestures.count
         collectedGestures.removeAll { $0.timestamp < cutoffTime }
         
         if gestureEventHistory.count > maxCollectionSize {
-            gestureEventHistory = Array(gestureEventHistory.suffix(maxCollectionSize))
+            let excessCount = gestureEventHistory.count - maxCollectionSize
+            gestureEventHistory.removeFirst(excessCount)
         }
-        let recentGestureTypes = Set(getRecentGestures(timeWindow: 5.0).map { $0.type })
+        
+        if collectedGestures.count < oldGestureCount / 2 {
+            collectedGestures = Array(collectedGestures)
+        }
+        
+        if gestureEventHistory.count < maxCollectionSize / 2 {
+            gestureEventHistory = Array(gestureEventHistory)
+        }
+        
+        let recentGestureTypes = Set(getRecentGestures(timeWindow: 3.0).map { $0.type })
         activeGestures = recentGestureTypes
     }
 }

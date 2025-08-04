@@ -9,11 +9,19 @@ public class VisionFoundation: @unchecked Sendable {
     private let handPoseRequest = VNDetectHumanHandPoseRequest()
     private var gestureHistory: [GestureFrame] = []
     private var detectedGestures: [ComprehensiveGesture] = []
-    private let maxHistorySize = 15
-    private let gestureTimeWindow: TimeInterval = 10.0
+    
+
+    private let maxHistorySize = 8
+    private let gestureTimeWindow: TimeInterval = 5.0
     
     private let confidenceThreshold: Float = 0.7
-    private let stabilityFrameCount = 4
+    private let stabilityFrameCount = 3
+    
+   
+    private var framesSinceLastDetection = 0
+    private let maxFramesWithoutDetection = 10
+    
+    public var enableAdvancedPatterns = false
     
     private var observers: [VisionFoundationObserver] = []
     
@@ -31,6 +39,7 @@ public class VisionFoundation: @unchecked Sendable {
             try handler.perform([handPoseRequest])
             processVisionResults()
         } catch {
+          //Silent failure to avoid overhead
         }
     }
     
@@ -58,11 +67,22 @@ public class VisionFoundation: @unchecked Sendable {
     private func processVisionResults() {
         guard let results = handPoseRequest.results else { return }
         
+        if results.isEmpty {
+            framesSinceLastDetection += 1
+            if framesSinceLastDetection > maxFramesWithoutDetection {
+                return
+            }
+        } else {
+            framesSinceLastDetection = 0
+        }
+        
         let gestureFrame = analyzeHandPoses(results)
         updateGestureHistory(with: gestureFrame)
         
-        let newGestures = detectAllGestures()
-        processNewGestures(newGestures)
+        if !gestureFrame.hands.isEmpty {
+            let newGestures = detectAllGestures()
+            processNewGestures(newGestures)
+        }
     }
     
     private func analyzeHandPoses(_ results: [VNHumanHandPoseObservation]) -> GestureFrame {
@@ -84,17 +104,28 @@ public class VisionFoundation: @unchecked Sendable {
             let landmarks = try extractAllLandmarks(from: observation)
             let palmCenter = calculatePalmCenter(from: landmarks)
             let fingerStates = analyzeFingerStates(from: landmarks)
-            let handOrientation = calculateHandOrientation(from: landmarks)
-            let gestureMetrics = calculateGestureMetrics(from: landmarks)
             
-            return HandAnalysis(
-                landmarks: landmarks,
-                palmCenter: palmCenter,
-                fingerStates: fingerStates,
-                orientation: handOrientation,
-                confidence: observation.confidence,
-                metrics: gestureMetrics
-            )
+            let handOrientation = calculateHandOrientation(from: landmarks)
+            let gestureMetrics = GestureMetrics()
+            
+            if enableAdvancedPatterns {
+                return HandAnalysis(
+                    landmarks: landmarks,
+                    palmCenter: palmCenter,
+                    fingerStates: fingerStates,
+                    orientation: handOrientation,
+                    confidence: observation.confidence,
+                    metrics: gestureMetrics
+                )
+            } else {
+                return HandAnalysis(
+                    palmCenter: palmCenter,
+                    fingerStates: fingerStates,
+                    orientation: handOrientation,
+                    confidence: observation.confidence,
+                    metrics: gestureMetrics
+                )
+            }
         } catch {
             return nil
         }
@@ -243,15 +274,30 @@ public class VisionFoundation: @unchecked Sendable {
     private func detectAllGestures() -> [ComprehensiveGesture] {
         var newGestures: [ComprehensiveGesture] = []
         
-        if let gesture = detectStaticGestures() { newGestures.append(gesture) }
+        if let gesture = detectStaticGestures() { 
+            newGestures.append(gesture)
+            return newGestures
+        }
         
-        if let gesture = detectDynamicGestures() { newGestures.append(gesture) }
+        if gestureHistory.count >= 5 {
+            if let gesture = detectDynamicGestures() { 
+                newGestures.append(gesture) 
+                return newGestures
+            }
+        }
         
-        if let gesture = detectTwoHandGestures() { newGestures.append(gesture) }
+        if let latestFrame = gestureHistory.last, latestFrame.hands.count == 2 {
+            if let gesture = detectTwoHandGestures() { newGestures.append(gesture) }
+        }
         
-        if let gesture = detectSequentialGestures() { newGestures.append(gesture) }
+        if gestureHistory.count >= 6 {
+            if let gesture = detectSequentialGestures() { newGestures.append(gesture) }
+        }
         
-        newGestures.append(contentsOf: detectAdvancedPatterns())
+        // Advanced patterns only if enabled (CPU intensive)
+        if enableAdvancedPatterns {
+            newGestures.append(contentsOf: detectAdvancedPatterns())
+        }
         
         return newGestures
     }
@@ -291,9 +337,9 @@ public class VisionFoundation: @unchecked Sendable {
     }
     
     private func detectDynamicGestures() -> ComprehensiveGesture? {
-        guard gestureHistory.count >= 5 else { return nil }
+        guard gestureHistory.count >= 4 else { return nil }
         
-        let recentFrames = Array(gestureHistory.suffix(5))
+        let recentFrames = Array(gestureHistory.suffix(4))
         
         if let swipe = detectSwipeGesture(in: recentFrames) {
             return swipe
@@ -336,7 +382,7 @@ public class VisionFoundation: @unchecked Sendable {
     
     private func detectWaveGesture(in frames: [GestureFrame]) -> ComprehensiveGesture? {
         let palmPositions = frames.compactMap { $0.hands.first?.palmCenter.x }
-        guard palmPositions.count >= 5 else { return nil }
+        guard palmPositions.count >= 4 else { return nil }
         
         var oscillations = 0
         for i in 1..<palmPositions.count-1 {
@@ -349,7 +395,7 @@ public class VisionFoundation: @unchecked Sendable {
             }
         }
         
-        if oscillations >= 2 {
+        if oscillations >= 1 {
             if let lastHand = frames.last?.hands.first {
                 return ComprehensiveGesture(type: .wave, confidence: lastHand.confidence, timestamp: Date(), handData: lastHand)
             }
@@ -410,10 +456,11 @@ public class VisionFoundation: @unchecked Sendable {
     private func detectPinchGesture() -> ComprehensiveGesture? {
         guard let latestFrame = gestureHistory.last,
               let hand = latestFrame.hands.first,
-              hand.landmarks.count >= 21 else { return nil }
+              let landmarks = hand.landmarks,
+              landmarks.count >= 21 else { return nil }
         
-        let thumbTip = hand.landmarks[4]
-        let indexTip = hand.landmarks[8]
+        let thumbTip = landmarks[4]
+        let indexTip = landmarks[8]
         let distance = self.distance(thumbTip, indexTip)
         
         if distance < 0.04 {
@@ -426,12 +473,13 @@ public class VisionFoundation: @unchecked Sendable {
     private func detectOKSign() -> ComprehensiveGesture? {
         guard let latestFrame = gestureHistory.last,
               let hand = latestFrame.hands.first,
-              hand.landmarks.count >= 21 else { return nil }
+              let landmarks = hand.landmarks, // Energy optimization: Check if landmarks exist
+              landmarks.count >= 21 else { return nil }
         
-        let thumbTip = hand.landmarks[4]
-        let indexTip = hand.landmarks[8]
-        let middleTip = hand.landmarks[12]
-        let middlePIP = hand.landmarks[10]
+        let thumbTip = landmarks[4]
+        let indexTip = landmarks[8]
+        let middleTip = landmarks[12]
+        let middlePIP = landmarks[10]
         
         let thumbIndexDistance = self.distance(thumbTip, indexTip)
         let middleExtended = middleTip.y > middlePIP.y + 0.02
@@ -480,8 +528,49 @@ public class VisionFoundation: @unchecked Sendable {
     
     private func cleanOldGestures() {
         let cutoffTime = Date().addingTimeInterval(-gestureTimeWindow)
+        
+        let oldCount = detectedGestures.count
         detectedGestures.removeAll { $0.timestamp < cutoffTime }
+    
+        if detectedGestures.count < oldCount / 2 {
+            detectedGestures = Array(detectedGestures)
+        }
     }
+    
+    // MARK: - Energy Management
+    
+    public func setEnergyMode(_ mode: EnergyMode) {
+        switch mode {
+        case .highPerformance:
+            enableAdvancedPatterns = true
+        case .balanced:
+            enableAdvancedPatterns = false
+        case .energySaver:
+            enableAdvancedPatterns = false
+            //More agressive measures could be implemented
+        }
+    }
+}
+
+// MARK: - Energy Mode
+public enum EnergyMode {
+    case highPerformance
+    case balanced  
+    case energySaver
+}
+
+// MARK: - Memory Optimized Structures
+private struct CompactGestureRecord {
+    let type: GestureType
+    let confidence: Float
+    let timestamp: Date
+    
+    init(from gesture: ComprehensiveGesture) {
+        self.type = gesture.type
+        self.confidence = gesture.confidence
+        self.timestamp = gesture.timestamp
+    }
+    
 }
 
 // MARK: - Supporting Data Structures
@@ -560,13 +649,22 @@ private struct GestureFrame {
 }
 
 public struct HandAnalysis {
-    public let landmarks: [CGPoint]
+    public let landmarks: [CGPoint]?
     public let palmCenter: CGPoint
     public let fingerStates: FingerStates
     public let orientation: Double
     public let confidence: Float
     public let metrics: GestureMetrics
     
+    public init(palmCenter: CGPoint, fingerStates: FingerStates, orientation: Double, confidence: Float, metrics: GestureMetrics = GestureMetrics()) {
+        self.landmarks = nil
+        self.palmCenter = palmCenter
+        self.fingerStates = fingerStates
+        self.orientation = orientation
+        self.confidence = confidence
+        self.metrics = metrics
+    }
+
     public init(landmarks: [CGPoint], palmCenter: CGPoint, fingerStates: FingerStates, orientation: Double, confidence: Float, metrics: GestureMetrics) {
         self.landmarks = landmarks
         self.palmCenter = palmCenter
