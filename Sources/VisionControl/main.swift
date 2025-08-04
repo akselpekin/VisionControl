@@ -1,5 +1,6 @@
 import SwiftUI
 import LOGIC
+import Foundation
 
 @main
 struct VisionControlApp: App {
@@ -8,10 +9,15 @@ struct VisionControlApp: App {
     
     init() {
         setupGestureSystem()
+        ConfigurationManager.shared.setupConfigurationFile()
     }
     
     var body: some Scene {
         MenuBarExtra("VisionControl", systemImage: "hand.raised.fill") {
+            Button("Settings") {
+                ConfigurationManager.shared.openSettingsFile()
+            }
+            Divider()
             Button("Toggle Camera") {
                 toggleCamera()
             }

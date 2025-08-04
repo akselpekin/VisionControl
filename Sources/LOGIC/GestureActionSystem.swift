@@ -79,7 +79,7 @@ public class ActionExecutor: @unchecked Sendable {
     }
     
     private func executeOpenApp(_ parameters: [String: String]) {
-        guard let bundleId = parameters["bundleId"] ?? parameters["appName"] else {
+        guard let bundleId = parameters["bundle_id"] ?? parameters["bundleId"] ?? parameters["app_name"] ?? parameters["appName"] else {
             print("Error: No bundle ID or app name provided for open app action")
             return
         }
@@ -91,7 +91,7 @@ public class ActionExecutor: @unchecked Sendable {
                 }
             }
         } else {
-            let appName = parameters["appName"] ?? bundleId
+            let appName = parameters["app_name"] ?? parameters["appName"] ?? bundleId
             if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: appName) {
                 NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
                     if let error = error {
@@ -150,7 +150,7 @@ public class ActionExecutor: @unchecked Sendable {
     }
     
     private func executeRunShortcut(_ parameters: [String: String]) {
-        guard let shortcutName = parameters["shortcutName"] else {
+        guard let shortcutName = parameters["shortcut_name"] ?? parameters["shortcutName"] else {
             print("Error: No shortcut name provided for run shortcut action")
             return
         }
