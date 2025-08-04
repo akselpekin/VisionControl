@@ -8,9 +8,7 @@ public class VisionFoundation: @unchecked Sendable {
     
     private let handPoseRequest = VNDetectHumanHandPoseRequest()
     private var gestureHistory: [GestureFrame] = []
-    private var detectedGestures: [ComprehensiveGesture] = []
     
-
     private let maxHistorySize = 8
     private let gestureTimeWindow: TimeInterval = 5.0
     
@@ -51,13 +49,12 @@ public class VisionFoundation: @unchecked Sendable {
         observers.removeAll { $0.id == observer.id }
     }
     
-    public func getAllDetectedGestures() -> [ComprehensiveGesture] {
-        return detectedGestures
+    public func addObserver(_ observer: VisionFoundationObserver) {
+        observers.append(observer)
     }
     
-    public func getRecentGestures(timeWindow: TimeInterval = 5.0) -> [ComprehensiveGesture] {
-        let cutoffTime = Date().addingTimeInterval(-timeWindow)
-        return detectedGestures.filter { $0.timestamp >= cutoffTime }
+    public func removeObserver(_ observer: VisionFoundationObserver) {
+        observers.removeAll { $0.id == observer.id }
     }
     
     private func setupVisionRequest() {
@@ -98,7 +95,6 @@ public class VisionFoundation: @unchecked Sendable {
     }
     
     private func extractHandAnalysis(from observation: VNHumanHandPoseObservation) -> HandAnalysis? {
-        guard observation.confidence > confidenceThreshold else { return nil }
         
         do {
             let landmarks = try extractAllLandmarks(from: observation)
