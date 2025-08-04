@@ -15,13 +15,8 @@ public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecke
     private var gestureEventHistory: [GestureEvent] = []
     private var gestureStatistics: GestureStatistics = GestureStatistics()
     
-    private var gestureCallbacks: [GestureType: [() -> Void]] = [:]
-    private var gestureConditions: [GestureType: (ComprehensiveGesture) -> Bool] = [:]
-    
     private let maxCollectionSize: Int = 100
     private let gestureRetentionTime: TimeInterval = 30.0
-    private let debounceInterval: TimeInterval = 0.5
-    private var lastTriggerTimes: [GestureType: Date] = [:]
     
     public static let shared = VisionBridge()
     
@@ -79,54 +74,9 @@ public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecke
         return gestureStatistics.confidenceSum / Float(gestureStatistics.totalGesturesDetected)
     }
     
-    public func onGesture(_ gestureType: GestureType, perform action: @escaping () -> Void) {
-        if gestureCallbacks[gestureType] != nil {
-            gestureCallbacks[gestureType]?.append(action)
-        } else {
-            gestureCallbacks[gestureType] = [action]
-        }
-        print("Trigger registered for \(gestureType.displayName)")
-    }
-    
-    public func onGesture(_ gestureType: GestureType, withCondition condition: @escaping (ComprehensiveGesture) -> Bool, perform action: @escaping () -> Void) {
-        gestureConditions[gestureType] = condition
-        onGesture(gestureType, perform: action)
-        print("Conditional trigger registered for \(gestureType.displayName)")
-    }
-    
-    public func removeGestureTrigger(_ gestureType: GestureType) {
-        gestureCallbacks[gestureType] = nil
-        gestureConditions[gestureType] = nil
-        print("Trigger removed for \(gestureType.displayName)")
-    }
-    
-    public func removeAllTriggers() {
-        gestureCallbacks.removeAll()
-        gestureConditions.removeAll()
-        lastTriggerTimes.removeAll()
-        print("All triggers removed")
-    }
-    
     private func processTriggers(for gesture: ComprehensiveGesture) {
-        guard let callbacks = gestureCallbacks[gesture.type] else { return }
-        
-        if let lastTrigger = lastTriggerTimes[gesture.type],
-           Date().timeIntervalSince(lastTrigger) < debounceInterval {
-            return
-        }
-        
-        if let condition = gestureConditions[gesture.type],
-           !condition(gesture) {
-            return
-        }
-        
-        for callback in callbacks {
-            callback()
-        }
-        
-        lastTriggerTimes[gesture.type] = Date()
-        
-        print("Triggered \(callbacks.count) action(s) for \(gesture.type.displayName)")
+        let actionManager = GestureActionManager.shared
+        actionManager.executeActionsForGesture(gesture)
     }
     
     public func getGesturesByType(_ type: GestureType) -> [ComprehensiveGesture] {
@@ -199,18 +149,56 @@ public class VisionBridge: ObservableObject, VisionFoundationObserver, @unchecke
         )
     }
     
+    // MARK: - Dynamic Action System Integration
+    public func addActionMapping(_ mapping: GestureActionMapping) {
+        GestureActionManager.shared.addMapping(mapping)
+    }
+    
+    public func removeActionMapping(withId id: UUID) {
+        GestureActionManager.shared.removeMapping(withId: id)
+    }
+    
+    public func getActionMappings(for gestureType: GestureType) -> [GestureActionMapping] {
+        return GestureActionManager.shared.getMappings(for: gestureType)
+    }
+    
+    public func getAllActionMappings() -> [GestureActionMapping] {
+        return GestureActionManager.shared.getAllMappings()
+    }
+    
+    public func clearAllActionMappings() {
+        GestureActionManager.shared.clearAllMappings()
+    }
+    
+    // MARK: - Action Configuration Helpers
+    public func mapGestureToOpenApp(_ gestureType: GestureType, appName: String, bundleId: String, minimumConfidence: Float = 0.7) {
+        let action = GestureActionManager.createOpenAppAction(name: "Open \(appName)", bundleId: bundleId, appName: appName)
+        let mapping = GestureActionMapping(gestureType: gestureType, actionConfiguration: action, minimumConfidence: minimumConfidence)
+        addActionMapping(mapping)
+    }
+    
+    public func mapGestureToOpenURL(_ gestureType: GestureType, name: String, url: String, minimumConfidence: Float = 0.7) {
+        let action = GestureActionManager.createOpenURLAction(name: name, url: url)
+        let mapping = GestureActionMapping(gestureType: gestureType, actionConfiguration: action, minimumConfidence: minimumConfidence)
+        addActionMapping(mapping)
+    }
+    
+    public func mapGestureToShellCommand(_ gestureType: GestureType, name: String, command: String, captureOutput: Bool = false, minimumConfidence: Float = 0.7) {
+        let action = GestureActionManager.createShellCommandAction(name: name, command: command, captureOutput: captureOutput)
+        let mapping = GestureActionMapping(gestureType: gestureType, actionConfiguration: action, minimumConfidence: minimumConfidence)
+        addActionMapping(mapping)
+    }
+    
+    public func mapGestureToShortcut(_ gestureType: GestureType, name: String, shortcutName: String, minimumConfidence: Float = 0.7) {
+        let action = GestureActionManager.createRunShortcutAction(name: name, shortcutName: shortcutName)
+        let mapping = GestureActionMapping(gestureType: gestureType, actionConfiguration: action, minimumConfidence: minimumConfidence)
+        addActionMapping(mapping)
+    }
+    
     public func setupCommonTriggers() {
-        onGesture(.peaceSign) {
-            print("Peace sign detected - Opening Safari")
-            NSWorkspace.shared.open(URL(string: "https://www.apple.com")!)
-        }
+        let _ = GestureActionManager.shared
         
-        onGesture(.pointingFinger) {
-            print("Pointing finger detected - Opening Terminal")
-            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Utilities/Terminal.app"))
-        }
-        
-        print("Common triggers setup complete")
+        print("Dynamic action system initialized with default mappings")
     }
     
     private func setupBridge() {
@@ -280,35 +268,5 @@ public struct GestureExportData {
         self.events = events
         self.statistics = statistics
         self.exportDate = exportDate
-    }
-}
-
-public extension VisionBridge {
-    func onPeaceSign(perform action: @escaping () -> Void) {
-        onGesture(.peaceSign, perform: action)
-    }
-    
-    func onThreeFingers(perform action: @escaping () -> Void) {
-        onGesture(.threeFingers, perform: action)
-    }
-    
-    func onThumbsUp(perform action: @escaping () -> Void) {
-        onGesture(.thumbsUp, perform: action)
-    }
-    
-    func onSwipeLeft(perform action: @escaping () -> Void) {
-        onGesture(.swipeLeft, perform: action)
-    }
-    
-    func onSwipeRight(perform action: @escaping () -> Void) {
-        onGesture(.swipeRight, perform: action)
-    }
-    
-    func onFist(perform action: @escaping () -> Void) {
-        onGesture(.fist, perform: action)
-    }
-    
-    func onOpenHand(perform action: @escaping () -> Void) {
-        onGesture(.openHand, perform: action)
     }
 }

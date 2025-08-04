@@ -31,7 +31,8 @@ public class CameraConnector: NSObject, @unchecked Sendable {
         session.sessionPreset = .medium
         
         let deviceTypes: [AVCaptureDevice.DeviceType] = [
-            .builtInWideAngleCamera
+            .builtInWideAngleCamera,
+            .continuityCamera
         ]
         
         let discoverySession = AVCaptureDevice.DiscoverySession(
@@ -40,12 +41,11 @@ public class CameraConnector: NSObject, @unchecked Sendable {
             position: .unspecified
         )
         
-        let builtInDevices = discoverySession.devices.filter { device in
-            return !device.localizedName.lowercased().contains("external") &&
-                   !device.localizedName.lowercased().contains("continuity")
+        let preferredDevices = discoverySession.devices.filter { device in
+            return !device.localizedName.lowercased().contains("external")
         }
         
-        guard let device = builtInDevices.first ?? discoverySession.devices.first,
+        guard let device = preferredDevices.first ?? discoverySession.devices.first,
               let input = try? AVCaptureDeviceInput(device: device) else {
             print("Failed to setup camera device")
             return
