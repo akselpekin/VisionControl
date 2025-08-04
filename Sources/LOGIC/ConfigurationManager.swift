@@ -23,6 +23,7 @@ public class ConfigurationManager: @unchecked Sendable {
         }
         
         loadConfigurationMappings()
+        loadEnergySettings()
     }
     
     private func createDefaultConfigFile(at url: URL) {
@@ -72,22 +73,29 @@ public class ConfigurationManager: @unchecked Sendable {
             config["name"] = name
             config["gesture"] = gesture.displayName
             config["gesture_id"] = String(describing: gesture)
-            config["enabled"] = "true"
+            config["enabled"] = "false"
             config["minimum_confidence"] = "0.7"
             
             gestureExamples.append(config)
         }
         
+        let energySettings = [
+            "energy_mode": "balanced",
+            "enable_advanced_patterns": false
+        ] as [String : Any]
+        
         return [
-            "version": "1.0",
-            "description": "VisionControl Gesture Configuration",
+            "version": "1.1",
+            "description": "VisionControl Advanced Configuration",
             "instructions": [
-                "Edit this file to configure gesture-to-action mappings",
+                "Edit this file to configure gesture-to-action mappings and energy settings",
                 "Available action types: open_app, open_url, shell_command, run_shortcut",
+                "Energy modes: high_performance (all features), balanced (default), energy_saver (minimal features)",
                 "Set enabled to false to disable a mapping",
                 "Minimum confidence range: 0.1 to 1.0",
                 "For open_app actions, you can optionally include bundle_id for better app identification"
             ],
+            "energy_settings": energySettings,
             "gesture_mappings": gestureExamples
         ]
     }
@@ -123,6 +131,35 @@ public class ConfigurationManager: @unchecked Sendable {
             
         } catch {
             print("Error loading configuration file: \(error)")
+        }
+    }
+    
+    private func loadEnergySettings() {
+        let configURL = getConfigFileURL()
+        
+        do {
+            let jsonData = try Data(contentsOf: configURL)
+            guard let config = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                  let energySettings = config["energy_settings"] as? [String: Any] else {
+                print("No energy settings found, using defaults")
+                return
+            }
+            
+            if let energyModeString = energySettings["energy_mode"] as? String {
+                let energyMode = energyModeFromString(energyModeString)
+                VisionFoundation.shared.setEnergyMode(energyMode)
+                print("Applied energy mode: \(energyModeString)")
+            }
+            
+            if let enableAdvanced = energySettings["enable_advanced_patterns"] as? Bool {
+                VisionFoundation.shared.enableAdvancedPatterns = enableAdvanced
+                print("Advanced patterns: \(enableAdvanced ? "enabled" : "disabled")")
+            }
+            
+            print("Energy settings loaded from configuration")
+            
+        } catch {
+            print("Error loading energy settings: \(error)")
         }
     }
     
@@ -204,6 +241,31 @@ public class ConfigurationManager: @unchecked Sendable {
         case "twoHandClap": return .twoHandClap
         case "sequencePeaceFistPeace": return .sequencePeaceFistPeace
         default: return nil
+        }
+    }
+    
+    private func energyModeFromString(_ mode: String) -> EnergyMode {
+        switch mode.lowercased() {
+        case "high_performance": return .highPerformance
+        case "balanced": return .balanced
+        case "energy_saver": return .energySaver
+        default: 
+            print("Unknown energy mode '\(mode)', using balanced")
+            return .balanced
+        }
+    }
+    
+    // MARK: - Energy Management
+    
+    private func cycleEnergyMode() {
+        let currentAdvanced = VisionFoundation.shared.enableAdvancedPatterns
+        
+        if currentAdvanced {
+            VisionFoundation.shared.setEnergyMode(.balanced)
+            print("Energy mode: High Performance → Balanced")
+        } else {
+            VisionFoundation.shared.setEnergyMode(.highPerformance)
+            print("Energy mode: Balanced → High Performance")
         }
     }
 }
