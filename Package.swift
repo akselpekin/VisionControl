@@ -10,14 +10,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "VisionControl",
-            dependencies: ["GUI", "LOGIC"],
+            dependencies: ["LOGIC"],
         ),
         .target(
             name: "LOGIC"
-        ),
-        .target(
-            name: "GUI",
-            dependencies: ["LOGIC"]
         ),
     ]
 )

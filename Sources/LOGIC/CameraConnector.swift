@@ -13,6 +13,10 @@ public class CameraConnector: NSObject, @unchecked Sendable {
         setupCameraSession()
     }
     
+    public var isRunning: Bool {
+        return session.isRunning
+    }
+    
     public func startCapture() {
         session.startRunning()
         print("Camera capture started")

@@ -1,27 +1,31 @@
 import SwiftUI
-import GUI
 import LOGIC
 
 @main
 struct VisionControlApp: App {
     @StateObject private var visionBridge = VisionBridge.shared
+    private let cameraConnector = CameraConnector.shared
+    
+    init() {
+        setupGestureSystem()
+    }
     
     var body: some Scene {
-        WindowGroup {
-            CameraView()
-                .frame(width: 400, height: 300)
-                .onAppear {
-                    setupGestureSystem()
-                }
-                .onDisappear {
-                    visionBridge.stopCollecting()
-                }
+        MenuBarExtra("VisionControl", systemImage: "hand.raised.fill") {
+            Button("Toggle Camera") {
+                toggleCamera()
+            }
+            Divider()
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
         }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
+        .menuBarExtraStyle(.menu)
     }
     
     private func setupGestureSystem() {
+        cameraConnector.startCapture()
+        
         visionBridge.startCollecting()
         visionBridge.setupCommonTriggers()
         
@@ -29,6 +33,13 @@ struct VisionControlApp: App {
         print("VisionFoundation: Ready")
         print("VisionBridge: Collecting gestures")
         print("CameraConnector: Streaming frames")
-        print("CameraView: Displaying mirrored camera")
+    }
+    
+    private func toggleCamera() {
+        if cameraConnector.isRunning {
+            cameraConnector.stopCapture()
+        } else {
+            cameraConnector.startCapture()
+        }
     }
 }
