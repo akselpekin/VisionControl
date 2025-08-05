@@ -60,13 +60,13 @@ VisionControl creates a configuration file at `~/Documents/VisionControlConfig.j
   "instructions": [
     "Edit this file to configure gesture-to-action mappings and energy settings",
     "Available action types: open_app, open_url, shell_command, run_shortcut",
-    "Energy modes: high_performance (all features), balanced (default), energy_saver (minimal features)",
+    "Energy modes: high (all features), low (default)",
     "Set enabled to false to disable a mapping",
     "Minimum confidence range: 0.1 to 1.0",
     "For open_app actions, you can optionally include bundle_id for better app identification"
   ],
   "energy_settings": {
-    "energy_mode": "balanced",
+    "energy_mode": "low",
     "enable_advanced_patterns": false
   },
   "gesture_mappings": [
