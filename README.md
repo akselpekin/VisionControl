@@ -49,9 +49,7 @@ See the releases section
 
 ## Configuration
 
-```diff
--VisionControl creates a configuration file at `~/Documents/VisionControlConfig.json` on first launch. This file contains all gesture mappings and system settings. Delete this file and let the app recreate it upon updating, or for resetting to defaults.
-```
+VisionControl creates a configuration file at `~/Documents/VisionControlConfig.json` on first launch. This file contains all gesture mappings and system settings. Delete this file and let the app recreate it upon updating, or for resetting to defaults.
 
 ### Configuration File Structure
 
