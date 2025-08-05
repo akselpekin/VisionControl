@@ -86,9 +86,8 @@ VisionControl creates a configuration file at `~/Documents/VisionControlConfig.j
 
 ### Energy Modes
 
-- **High Performance**: All gesture patterns enabled, maximum accuracy
-- **Balanced** (Default): Standard gesture set with optimized processing
-- **Energy Saver**: Minimal processing, basic gestures only
+- **high**: All gesture patterns enabled, maximum accuracy
+- **low** (Default): Standard gesture set with optimized processing
 
 ### Enabling Gestures
 
