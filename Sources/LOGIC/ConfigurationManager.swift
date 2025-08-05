@@ -85,7 +85,7 @@ public class ConfigurationManager: @unchecked Sendable {
         ] as [String : Any]
         
         return [
-            "version": "1.1",
+            "version": "1.0",
             "description": "VisionControl Advanced Configuration",
             "instructions": [
                 "Edit this file to configure gesture-to-action mappings and energy settings",
