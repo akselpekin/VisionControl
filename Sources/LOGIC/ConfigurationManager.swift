@@ -80,7 +80,7 @@ public class ConfigurationManager: @unchecked Sendable {
         }
         
         let energySettings = [
-            "energy_mode": "balanced",
+            "energy_mode": "low",
             "enable_advanced_patterns": false
         ] as [String : Any]
         
@@ -90,7 +90,7 @@ public class ConfigurationManager: @unchecked Sendable {
             "instructions": [
                 "Edit this file to configure gesture-to-action mappings and energy settings",
                 "Available action types: open_app, open_url, shell_command, run_shortcut",
-                "Energy modes: high_performance (all features), balanced (default), energy_saver (minimal features)",
+                "Energy modes: high (all features), low (minimal features)",
                 "Set enabled to false to disable a mapping",
                 "Minimum confidence range: 0.1 to 1.0",
                 "For open_app actions, you can optionally include bundle_id for better app identification"
@@ -246,12 +246,11 @@ public class ConfigurationManager: @unchecked Sendable {
     
     private func energyModeFromString(_ mode: String) -> EnergyMode {
         switch mode.lowercased() {
-        case "high_performance": return .highPerformance
-        case "balanced": return .balanced
-        case "energy_saver": return .energySaver
+        case "high_performance": return .high
+        case "Low": return .low
         default: 
-            print("Unknown energy mode '\(mode)', using balanced")
-            return .balanced
+            print("Unknown energy mode '\(mode)', using low")
+            return .low
         }
     }
     
@@ -261,11 +260,11 @@ public class ConfigurationManager: @unchecked Sendable {
         let currentAdvanced = VisionFoundation.shared.enableAdvancedPatterns
         
         if currentAdvanced {
-            VisionFoundation.shared.setEnergyMode(.balanced)
-            print("Energy mode: High Performance → Balanced")
+            VisionFoundation.shared.setEnergyMode(.low)
+            print("Energy mode: High Performance → Low")
         } else {
-            VisionFoundation.shared.setEnergyMode(.highPerformance)
-            print("Energy mode: Balanced → High Performance")
+            VisionFoundation.shared.setEnergyMode(.high)
+            print("Energy mode: Low → High Performance")
         }
     }
 }
